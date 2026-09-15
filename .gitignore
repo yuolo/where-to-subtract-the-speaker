@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.DS_Store
+
+# Corpora and caches are never committed (see README, Data)
+/AudioWAV/
+/data/
+/iemocap/
+/*wav2vec2_frozen_outputs/
+/outputs/paper1/
+outputs/**/data_bundle_*.pkl
+outputs/**/concept_feature_cache_*.csv
+outputs/**/embeddings/
+*.npz
+*.npy
+*.pt
+
+# Reports written by the analysis scripts
+outputs/**/*.md

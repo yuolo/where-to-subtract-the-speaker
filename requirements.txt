@@ -1,0 +1,12 @@
+# Analysis (tested with numpy 2.0.2, pandas 2.3.3, scipy 1.13.1 on Python 3.9)
+numpy
+pandas
+scipy
+scikit-learn
+
+# Training and feature extraction
+torch
+transformers
+librosa
+opensmile
+tqdm
