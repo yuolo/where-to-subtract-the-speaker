@@ -197,12 +197,11 @@ def run_one(task: Dict) -> List[Dict]:
     return rows
 
 
-def _init_worker(datasets: List[str], epochs: int, device: str):
+def _init_worker(datasets: List[str], epochs: int, device: str, results_root: str):
     torch.set_num_threads(2)
     data = {}
     for ds in datasets:
-        csv = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           "outputs", "floor_sweep", ds,
+        csv = os.path.join(results_root, "floor_sweep", ds,
                            "concept_feature_cache_opensmile_eGeMAPSv02.csv")
         data[ds] = load_data(ds, csv)
     _W.update(epochs=epochs, device=device, data=data)
@@ -216,6 +215,8 @@ def main() -> None:
     p.add_argument("--jobs", type=int, default=1)
     p.add_argument("--device", default="cpu")
     p.add_argument("--smoke", action="store_true")
+    p.add_argument("--results-root", default=os.path.dirname(OUT_ROOT),
+                   help="root for new results and eGeMAPS caches (use reruns to preserve released CSVs)")
     args = p.parse_args()
 
     if args.smoke:
@@ -227,17 +228,18 @@ def main() -> None:
                  for d in datasets for s in args.seeds.split(",")
                  for f in range(1, 6)]
 
-    os.makedirs(OUT_ROOT, exist_ok=True)
+    out_root = os.path.join(os.path.abspath(args.results_root), "posthoc")
+    os.makedirs(out_root, exist_ok=True)
     results_csv = os.path.join(
-        OUT_ROOT, "posthoc_results_smoke.csv" if args.smoke else "posthoc_results.csv")
-    print(f"{len(tasks)} trainings x 4 variants, jobs={args.jobs}")
+        out_root, "posthoc_results_smoke.csv" if args.smoke else "posthoc_results.csv")
+    print(f"{len(tasks)} trainings x 5 variants, jobs={args.jobs}")
 
     rows: List[Dict] = []
 
     def _consume(new_rows: List[Dict]) -> None:
         rows.extend(new_rows)
         r = {x["variant"]: x for x in new_rows}
-        print(f"({len(rows)//4}/{len(tasks)}) "
+        print(f"({len(rows)//5}/{len(tasks)}) "
               f"[{new_rows[0]['dataset']} seed={new_rows[0]['seed']} fold={new_rows[0]['fold']}] "
               + "  ".join(f"{v}: {r[v]['test_uar']:.3f}/{r[v]['h_linear_mi_lb_bits']:.3f}b"
                           for v in ("plain", "subtract", "leace_trans",
@@ -246,14 +248,14 @@ def main() -> None:
         pd.DataFrame(rows).to_csv(results_csv, index=False)
 
     if args.jobs <= 1:
-        _init_worker(datasets, args.epochs, args.device)
+        _init_worker(datasets, args.epochs, args.device, args.results_root)
         for t in tasks:
             _consume(run_one(t))
     else:
         ctx = mp.get_context("spawn")
         with ProcessPoolExecutor(max_workers=args.jobs, mp_context=ctx,
                                  initializer=_init_worker,
-                                 initargs=(datasets, args.epochs, args.device)) as pool:
+                                 initargs=(datasets, args.epochs, args.device, args.results_root)) as pool:
             futures = {pool.submit(run_one, t): t for t in tasks}
             for fut in as_completed(futures):
                 try:
@@ -261,6 +263,9 @@ def main() -> None:
                 except Exception:
                     print(f"FAILED {futures[fut]}:\n{traceback.format_exc()}", flush=True)
 
+    if len(rows) != 5 * len(tasks):
+        raise RuntimeError(f"Incomplete post-hoc batch: {len(rows)}/{5 * len(tasks)} variant rows. "
+                           f"Any completed results were saved to {results_csv}")
     out = pd.DataFrame(rows).sort_values(["dataset", "variant", "seed", "fold"])
     out.to_csv(results_csv, index=False)
     print(f"\nSaved {len(out)} rows -> {results_csv}\n")

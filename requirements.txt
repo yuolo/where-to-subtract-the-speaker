@@ -1,10 +1,9 @@
-# Analysis (tested with numpy 2.0.2, pandas 2.3.3, scipy 1.13.1 on Python 3.9)
-numpy
-pandas
-scipy
-scikit-learn
+# Analysis versions verified against the released CSVs.
+-r requirements-analysis.txt
+scikit-learn==1.6.1
 
 # Training and feature extraction
+# These are dependencies, not a recovered lockfile of the historical training runs.
 torch
 transformers
 librosa

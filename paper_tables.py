@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import argparse
+import glob
 import itertools
 import os
 
@@ -45,7 +47,10 @@ def indexed(rel: str, corpus: str) -> pd.DataFrame:
 
 def fixed_runs(corpus: str) -> pd.DataFrame:
     root = os.path.join(OUT, "position_fixed_enroll", corpus, "fixed_enroll")
-    return pd.concat([pd.read_csv(os.path.join(root, f)) for f in sorted(os.listdir(root))], ignore_index=True)
+    files = sorted(glob.glob(os.path.join(root, "fixed_pos*_seed*_fold*.csv")))
+    if not files:
+        raise FileNotFoundError(f"No fixed-enrollment results in {root}")
+    return pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
 
 
 def num(x: float, digits: int = 3) -> str:
@@ -75,6 +80,11 @@ def table1() -> None:
     for regime, cmn_rel, cp, op_rel, op in TABLE1:
         for corpus, name in CORPORA:
             a, b = indexed(cmn_rel, corpus), indexed(op_rel, corpus)
+            if set(a.index) != set(b.index):
+                raise ValueError(f"Unmatched seed/fold keys: {regime}, {corpus}")
+            expected = 9 if regime.startswith("Fine-tuned") else 15
+            if len(a) != expected:
+                raise ValueError(f"{regime}, {corpus}: expected {expected} runs, got {len(a)}")
             idx = a.index.intersection(b.index)
             a, b = a.loc[idx], b.loc[idx]
             gap = b[f"{op}_linear_mi_lb_bits"] - a[f"{cp}_linear_mi_lb_bits"]
@@ -222,6 +232,9 @@ def concepts() -> None:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--results-root", default=OUT, help="CSV tree to audit (default: released outputs)")
+    OUT = os.path.abspath(parser.parse_args().results_root)
     probe_agreement()
     table1()
     crnn_details()
