@@ -1,0 +1,11 @@
+# Analysis versions verified against the released CSVs.
+-r requirements-analysis.txt
+scikit-learn==1.6.1
+
+# Training and feature extraction
+# These are dependencies, not a recovered lockfile of the historical training runs.
+torch
+transformers
+librosa
+opensmile
+tqdm
